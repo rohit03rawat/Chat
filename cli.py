@@ -3,67 +3,71 @@ import threading
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
 
-# Define global variables
-client_socket = None
-
-def connect_to_server():
-    global client_socket
-    server_ip = "127.0.0.1"  # Replace with server IP
-    server_port = 9999        # Replace with server port
-
-    try:
-        # Create a socket object and connect to the server
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect((server_ip, server_port))
-        messagebox.showinfo("Connection Status", "Connected to server.")
-        
-        # Start a new thread to receive messages from the server
-        threading.Thread(target=receive_messages, daemon=True).start()
-    except ConnectionRefusedError:
-        messagebox.showerror("Connection Error", "Server not running. Please start the server and try again.")
-    except Exception as e:
-        messagebox.showerror("Error", f"An error occurred: {e}")
-
-def send_message():
-    if client_socket:
-        message = message_entry.get()
-        if message:
-            client_socket.sendall(message.encode())
-            message_entry.delete(0, tk.END)
-            chat_display.insert(tk.END, f"You: {message}\n")
-            chat_display.yview(tk.END)
-
-def receive_messages():
-    global client_socket
+# Function to receive messages from the server
+def receive_messages(client_socket, text_area):
     while True:
         try:
             message = client_socket.recv(1024).decode()
-            if message:
-                chat_display.insert(tk.END, f"Server: {message}\n")
-                chat_display.yview(tk.END)
-        except Exception as e:
-            messagebox.showerror("Error", f"An error occurred while receiving message: {e}")
+            if not message:
+                break
+            text_area.config(state=tk.NORMAL)
+            text_area.insert(tk.END, message + '\n')
+            text_area.config(state=tk.DISABLED)
+        except:
+            print("Error receiving message.")
+            client_socket.close()
             break
 
-# Setup the Tkinter GUI
-root = tk.Tk()
-root.title("Chat Client")
+# Function to send messages to the server
+def send_message(client_socket, message_entry):
+    message = message_entry.get()
+    if message:
+        client_socket.send(message.encode())
+        message_entry.delete(0, tk.END)
 
-# Chat display area
-chat_display = scrolledtext.ScrolledText(root, state='disabled', width=50, height=20)
-chat_display.pack(padx=10, pady=10)
+# GUI Setup function
+def setup_gui(client_socket):
+    # Create the root window
+    root = tk.Tk()
+    root.title("Client Chat")
 
-# Message entry field
-message_entry = tk.Entry(root, width=40)
-message_entry.pack(side=tk.LEFT, padx=(10, 0))
+    # Text area for displaying chat messages
+    text_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, state=tk.DISABLED)
+    text_area.pack(padx=10, pady=10)
 
-# Send button
-send_button = tk.Button(root, text="Send", command=send_message)
-send_button.pack(side=tk.LEFT, padx=10)
+    # Text entry for typing messages
+    message_entry = tk.Entry(root, width=50)
+    message_entry.pack(padx=10, pady=10)
 
-# Connect button
-connect_button = tk.Button(root, text="Connect to Server", command=connect_to_server)
-connect_button.pack(pady=10)
+    # Button to send message
+    send_button = tk.Button(root, text="Send", command=lambda: send_message(client_socket, message_entry))
+    send_button.pack(pady=5)
 
-root.mainloop()
+    # Binding Enter key to send message
+    message_entry.bind("<Return>", lambda event: send_message(client_socket, message_entry))
 
+    # Thread for receiving messages
+    receive_thread = threading.Thread(target=receive_messages, args=(client_socket, text_area))
+    receive_thread.daemon = True
+    receive_thread.start()
+
+    # Start the Tkinter main loop
+    root.mainloop()
+
+# Main function to start the client
+def main():
+    try:
+        # Create a socket object
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        # Connect to the server (localhost in this case)
+        client_socket.connect(('127.0.0.1', 9999))
+
+        # Call the GUI setup function
+        setup_gui(client_socket)
+
+    except Exception as e:
+        messagebox.showerror("Connection Error", f"Unable to connect to server: {e}")
+
+if __name__ == "__main__":
+    main()
