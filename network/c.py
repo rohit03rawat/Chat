@@ -22,10 +22,14 @@ def start_chat(server_ip):
         while True:
             message = input("Enter message to send: ")
             if message.lower() == 'exit':
+                chat_socket.sendall(message.encode())
                 print("Closing connection...")
                 break
             chat_socket.sendall(message.encode())
             server_message = chat_socket.recv(1024).decode()
+            if server_message.lower() == 'exit':
+                print("Server closed the connection.")
+                break
             print(f"Server says: {server_message}")
     except Exception as e:
         print(f"Error: {e}")
